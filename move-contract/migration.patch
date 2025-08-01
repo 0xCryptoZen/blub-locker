@@ -1,0 +1,25 @@
+--- ./sources/blub_lock.move
++++ ./sources/blub_lock.move
+@@ -28 +28 @@
+-struct LockerRegistry has key {
++public struct LockerRegistry has key {
+@@ -37 +37 @@
+-struct CoinLock<phantom T> has key, store {
++public struct CoinLock<phantom T> has key, store {
+@@ -48 +48 @@
+-struct LockCertificate has key, store {
++public struct LockCertificate has key, store {
+@@ -59 +59 @@
+-struct CoinLockedEvent has copy, drop {
++public struct CoinLockedEvent has copy, drop {
+@@ -68 +68 @@
+-struct CoinUnlockedEvent has copy, drop {
++public struct CoinUnlockedEvent has copy, drop {
+@@ -203 +203 @@
+-    coins: vector<Coin<T>>,
++    mut coins: vector<Coin<T>>,
+@@ -210,2 +210,2 @@
+-    let certificates = vector::empty<LockCertificate>();
+-    let i = 0;
++    let mut certificates = vector::empty<LockCertificate>();
++    let mut i = 0;
