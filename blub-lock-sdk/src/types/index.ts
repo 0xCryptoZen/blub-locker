@@ -1,11 +1,11 @@
-import { SuiObjectData } from '@mysten/sui/client';
+import { TransactionArgument } from '@mysten/sui/transactions'
 
 // ===== Basic Types =====
 
 export interface LockDetail {
   amount: string;
-  lock_timestamp: string;
-  unlock_timestamp: string;
+  lock_ts: string;
+  unlock_ts: string;
 }
 
 export interface UserLockInfo {
@@ -22,7 +22,7 @@ export interface LockerRegistry {
   admin: string;
 }
 
-export interface CoinLock<T = any> {
+export interface CoinLock {
   id: string;
   owner: string;
   locked_coin: {
@@ -33,8 +33,8 @@ export interface CoinLock<T = any> {
     };
   };
   locked_amount: string;
-  lock_timestamp: string;
-  unlock_timestamp: string;
+  lock_ts: string;
+  unlock_ts: string;
   claimed: boolean;
 }
 
@@ -44,7 +44,7 @@ export interface LockCertificate {
   coin_type: string;
   owner: string;
   amount: string;
-  unlock_timestamp: string;
+  unlock_ts: string;
 }
 
 // ===== SDK Options =====
@@ -58,16 +58,14 @@ export interface BlubLockSDKOptions {
 
 // ===== Transaction Types =====
 
-export interface LockCoinsParams<T = string> {
-  coinType: T;
-  coins: string[];
+export interface LockCoinsParams {
+  coinType: string;
   amount: string;
   lockDuration: number; // in seconds
-  clockId?: string;
 }
 
-export interface UnlockCoinsParams<T = string> {
-  coinType: T;
+export interface UnlockCoinsParams {
+  coinType: string;
   lockId: string;
   clockId?: string;
 }
@@ -78,7 +76,7 @@ export interface TransferCertificateParams {
 }
 
 export interface SetPausedParams {
-  paused: boolean;
+  pause: boolean;
 }
 
 export interface TransferAdminParams {

@@ -359,9 +359,9 @@ public fun transfer_admin(registry: &mut LockerRegistry, new_admin: address, ctx
     registry.admin = new_admin;
 }
 
-// ===== Certificate Functions =====
+// ===== Test Only Functions =====
 
-/// Transfer lock certificate (transfers lock ownership)
-public fun transfer_certificate(cert: LockCertificate, recipient: address) {
-    transfer::public_transfer(cert, recipient);
+#[test_only]
+public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
 }

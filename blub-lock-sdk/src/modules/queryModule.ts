@@ -7,12 +7,11 @@ import {
   LockerRegistry,
   LockCertificate
 } from '../types';
-import { 
-  normalizeCoinType, 
-  getDefaultClockId,
+import {
   buildTarget 
 } from '../utils/transaction';
 import { isUserLocksViewEvent } from '../types/events';
+import { completionCoin, getObjectFields } from '~/utils/sui'
 
 export class QueryModule {
   constructor(
@@ -48,20 +47,20 @@ export class QueryModule {
         owner: fields.owner,
         locked_coin: fields.locked_coin,
         locked_amount: fields.locked_amount,
-        lock_timestamp: fields.lock_timestamp,
-        unlock_timestamp: fields.unlock_timestamp,
+        lock_ts: fields.lock_ts,
+        unlock_ts: fields.unlock_ts,
         claimed: fields.claimed,
       };
 
       // Check if can unlock
       const currentTime = Math.floor(Date.now() / 1000);
-      const canUnlock = currentTime >= parseInt(lockData.unlock_timestamp) && !lockData.claimed;
+      const canUnlock = currentTime >= parseInt(lockData.unlock_ts) && !lockData.claimed;
 
       return {
         owner: lockData.owner,
         lockedAmount: lockData.locked_amount,
-        lockTimestamp: parseInt(lockData.lock_timestamp),
-        unlockTimestamp: parseInt(lockData.unlock_timestamp),
+        lockTimestamp: parseInt(lockData.lock_ts),
+        unlockTimestamp: parseInt(lockData.unlock_ts),
         claimed: lockData.claimed,
         canUnlock,
       };
@@ -77,7 +76,6 @@ export class QueryModule {
   async canUnlock<T = string>(
     lockId: string,
     coinType: T,
-    clockId?: string
   ): Promise<boolean> {
     const lockInfo = await this.getLockInfo(lockId, coinType);
     if (!lockInfo) return false;
@@ -123,8 +121,8 @@ export class QueryModule {
       const eventData = userLocksEvent.parsedJson as any;
       const locks = eventData.amounts.map((amount: string, index: number) => ({
         amount,
-        lockTimestamp: parseInt(eventData.lock_timestamps[index]),
-        unlockTimestamp: parseInt(eventData.unlock_timestamps[index]),
+        lockTimestamp: parseInt(eventData.lock_tss[index]),
+        unlockTimestamp: parseInt(eventData.unlock_tss[index]),
       }));
 
       const totalLockedAmount = locks.reduce(
@@ -165,15 +163,66 @@ export class QueryModule {
       }
 
       const fields = registryObject.data.content.fields as any;
-      const normalizedCoinType = normalizeCoinType(coinType);
+
+      const normalizedCoinType = completionCoin(coinType);
       
       // The total_locked field is a Table, we need to check if the coin type exists
       // In a real implementation, you might need to use dynamic field queries
-      const totalLocked = fields.total_locked?.fields?.[normalizedCoinType] || '0';
+
+      const totalLockedID = fields.total_locked?.fields?.id?.id
+
+      let noExit = true 
+      const limit = 50
+      let cursor = null
+      let totalLockedMap: Map<string, bigint> = new Map()
       
+      while (noExit) {
+        const totalLockedFields = await this.client.getDynamicFields({parentId: totalLockedID, limit, cursor})
+        
+        // 获取所有的 objectId
+        const allFieldIDs = totalLockedFields.data.map(item => item.objectId)
+        
+        if (allFieldIDs.length === 0) {
+          break
+        }
+        
+        const allFieldObjects = await this.client.multiGetObjects({ids: allFieldIDs, options: {showContent: true}})
+
+        for (const item of allFieldObjects) {
+          try {
+            const fields = getObjectFields(item)
+            if (!fields) {
+              continue
+            }
+
+            
+            // 检查必要的字段是否存在
+            if (!fields?.name?.fields?.name || !fields?.value) {
+              continue
+            }
+            
+            const coinTypeName = fields.name.fields.name
+            const coinType = completionCoin("0x" + coinTypeName)
+            const amount = BigInt(fields.value)
+            
+            // 设置到 Map 中
+            totalLockedMap.set(coinType, amount)
+            
+          } catch (error) {
+            continue
+          }
+        }
+        
+        // 检查是否还有更多数据
+        if (totalLockedFields.hasNextPage && totalLockedFields.nextCursor) {
+          cursor = totalLockedFields.nextCursor
+        } else {
+          noExit = false
+        }
+      }
+      const totalLocked = totalLockedMap.get(normalizedCoinType)?.toString() || '0';
       return totalLocked;
     } catch (error) {
-      console.error('Error fetching total locked:', error);
       return '0';
     }
   }
@@ -201,10 +250,39 @@ export class QueryModule {
           return {
             id: obj.data!.objectId,
             lock_id: fields.lock_id,
-            coin_type: fields.coin_type,
+            coin_type: completionCoin(fields.coin_type.fields.name),
             owner: fields.owner,
             amount: fields.amount,
-            unlock_timestamp: fields.unlock_timestamp,
+            unlock_ts: fields.unlock_ts,
+          };
+        });
+    } catch (error) {
+      console.error('Error fetching user certificates:', error);
+      return [];
+    }
+  }
+
+  async getCertificatesById(certificateIDs: string[]): Promise<LockCertificate[]> {
+    try {
+      const objects = await this.client.multiGetObjects({
+        ids: certificateIDs,
+        options: {
+          showContent: true,
+        },
+      });
+
+      return objects
+        .filter(obj => obj.data && obj.data.content && 
+                obj.data.content.dataType === 'moveObject')
+        .map(obj => {
+          const fields = (obj.data!.content as any).fields;
+          return {
+            id: obj.data!.objectId,
+            lock_id: fields.lock_id,
+            coin_type: completionCoin(fields.coin_type.fields.name),
+            owner: fields.owner,
+            amount: fields.amount,
+            unlock_ts: fields.unlock_ts,
           };
         });
     } catch (error) {

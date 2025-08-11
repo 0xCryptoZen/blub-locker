@@ -1,4 +1,4 @@
-import { SuiClient, SuiClientOptions } from '@mysten/sui/client';
+import { SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
 import { LockModule } from './modules/lockModule';
 import { QueryModule } from './modules/queryModule';
@@ -18,31 +18,30 @@ export class BlubLockSDK {
     this.packageId = options.packageId;
     this.registryId = options.registryId;
 
-    // Initialize Sui client
-    const clientOptions: SuiClientOptions = {};
+    let fullNodeUrl: string;
     if (options.fullNodeUrl) {
-      clientOptions.url = options.fullNodeUrl;
+      fullNodeUrl = options.fullNodeUrl;
     } else {
       // Default URLs based on network type
       switch (options.networkType) {
         case 'mainnet':
-          clientOptions.url = 'https://fullnode.mainnet.sui.io';
+          fullNodeUrl = 'https://fullnode.mainnet.sui.io';
           break;
         case 'testnet':
-          clientOptions.url = 'https://fullnode.testnet.sui.io';
+          fullNodeUrl = 'https://fullnode.testnet.sui.io';
           break;
         case 'devnet':
-          clientOptions.url = 'https://fullnode.devnet.sui.io';
+          fullNodeUrl = 'https://fullnode.devnet.sui.io';
           break;
         case 'localnet':
-          clientOptions.url = 'http://127.0.0.1:9000';
+          fullNodeUrl = 'http://127.0.0.1:9000';
           break;
         default:
-          clientOptions.url = 'https://fullnode.mainnet.sui.io';
+          fullNodeUrl = 'https://fullnode.mainnet.sui.io';
       }
     }
 
-    this.client = new SuiClient(clientOptions);
+    this.client = new SuiClient({ url: fullNodeUrl });
 
     // Initialize modules
     this.lock = new LockModule(this.client, this.packageId, this.registryId);
@@ -72,21 +71,22 @@ export class BlubLockSDK {
   async executeTransaction(
     transaction: Transaction,
     signer: any,
-    options?: any
   ) {
     return await this.client.signAndExecuteTransaction({
       transaction,
       signer,
-      ...options,
+      options: {
+        showEffects: true
+      }
     });
   }
 
   // Dry run a transaction
-  async dryRunTransaction(
+  async devInspectTransaction(
     transaction: Transaction,
     sender: string
   ) {
-    return await this.client.dryRunTransactionBlock({
+    return await this.client.devInspectTransactionBlock({
       transactionBlock: await transaction.build({ client: this.client }),
       sender,
     });

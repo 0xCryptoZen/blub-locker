@@ -22,7 +22,7 @@ export class AdminModule {
       target: buildTarget(this.packageId, 'coin_locker', 'set_paused'),
       arguments: [
         tx.object(this.registryId),
-        tx.pure.bool(params.paused),
+        tx.pure.bool(params.pause),
       ],
     });
 

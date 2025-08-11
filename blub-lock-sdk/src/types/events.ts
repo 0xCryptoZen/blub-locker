@@ -5,8 +5,8 @@ export interface CoinLockedEvent {
   owner: string;
   coin_type: string;
   amount: string;
-  lock_timestamp: string;
-  unlock_timestamp: string;
+  lock_ts: string;
+  unlock_ts: string;
 }
 
 export interface CoinUnlockedEvent {
@@ -14,15 +14,15 @@ export interface CoinUnlockedEvent {
   owner: string;
   coin_type: string;
   amount: string;
-  unlock_timestamp: string;
+  unlock_ts: string;
 }
 
 export interface UserLocksViewEvent {
   user: string;
   lock_ids: string[];
   amounts: string[];
-  lock_timestamps: string[];
-  unlock_timestamps: string[];
+  lock_tss: string[];
+  unlock_tss: string[];
 }
 
 export type BlubLockEvent = CoinLockedEvent | CoinUnlockedEvent | UserLocksViewEvent;

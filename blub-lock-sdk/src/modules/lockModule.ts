@@ -1,5 +1,5 @@
 import { SuiClient } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
+import { coinWithBalance, Transaction, TransactionArgument, TransactionObjectArgument } from '@mysten/sui/transactions';
 import { 
   LockCoinsParams, 
   UnlockCoinsParams, 
@@ -13,6 +13,7 @@ import {
   getDefaultClockId,
   buildTarget 
 } from '../utils/transaction';
+import { SUI_CLOCK_OBJECT_ID } from '@mysten/sui/utils'
 
 export class LockModule {
   constructor(
@@ -24,9 +25,11 @@ export class LockModule {
   /**
    * Lock coins for a specified duration
    * @param params Lock parameters
-   * @returns Transaction that needs to be signed and executed
+   * @returns 
+   *  1. Transaction that needs to be signed and executed.
+   *  2. lockCertificate.
    */
-  buildLockCoinsTransaction<T = string>(params: LockCoinsParams<T>): Transaction {
+  buildLockCoinsTransaction(params: LockCoinsParams): {tx: Transaction, lockCertificate: TransactionObjectArgument} {
     const tx = new Transaction();
     
     // Validate parameters
@@ -36,21 +39,18 @@ export class LockModule {
     if (params.lockDuration > MAX_LOCK_DURATION) {
       throw new Error(`Lock duration must not exceed ${MAX_LOCK_DURATION} seconds (365 days)`);
     }
-    if (!params.coins || params.coins.length === 0) {
-      throw new Error('No coins provided for locking');
-    }
     if (BigInt(params.amount) <= 0) {
       throw new Error('Lock amount must be greater than 0');
     }
 
     const coinType = normalizeCoinType(params.coinType);
-    const clockId = params.clockId || getDefaultClockId();
+    const clockId = getDefaultClockId();
 
     // Build coin input
-    const coinArg = buildCoinVector(tx, coinType, params.coins, params.amount);
+    const coinArg = coinWithBalance({balance: Number(params.amount), type: coinType})
 
     // Call lock_coins function
-    const result = tx.moveCall({
+    const lockCertificate = tx.moveCall({
       target: buildTarget(this.packageId, 'coin_locker', 'lock_coins'),
       typeArguments: [coinType],
       arguments: [
@@ -61,10 +61,10 @@ export class LockModule {
       ],
     });
 
-    // Transfer the certificate to the sender
-    tx.transferObjects([result], tx.pure.address(tx.pure.address('0x0')));
-
-    return tx;
+    return {
+      tx,
+      lockCertificate
+    };
   }
 
   /**
@@ -72,11 +72,10 @@ export class LockModule {
    * @param params Unlock parameters
    * @returns Transaction that needs to be signed and executed
    */
-  buildUnlockCoinsTransaction<T = string>(params: UnlockCoinsParams<T>): Transaction {
+  buildUnlockCoinsTransaction(params: UnlockCoinsParams): Transaction {
     const tx = new Transaction();
 
     const coinType = normalizeCoinType(params.coinType);
-    const clockId = params.clockId || getDefaultClockId();
 
     // Call unlock_coins function
     tx.moveCall({
@@ -85,64 +84,10 @@ export class LockModule {
       arguments: [
         tx.object(this.registryId),
         tx.object(params.lockId),
-        tx.object(clockId),
+        tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });
 
     return tx;
-  }
-
-  /**
-   * Transfer lock certificate to another address
-   * @param params Transfer parameters
-   * @returns Transaction that needs to be signed and executed
-   */
-  buildTransferCertificateTransaction(params: TransferCertificateParams): Transaction {
-    const tx = new Transaction();
-
-    // Call transfer_certificate function
-    tx.moveCall({
-      target: buildTarget(this.packageId, 'coin_locker', 'transfer_certificate'),
-      arguments: [
-        tx.object(params.certificateId),
-        tx.pure.address(params.recipient),
-      ],
-    });
-
-    return tx;
-  }
-
-  /**
-   * Helper: Get all coins of a specific type for an address
-   */
-  async getCoinsForAddress(
-    owner: string,
-    coinType: string,
-    limit = 50
-  ): Promise<string[]> {
-    const coins = await this.client.getCoins({
-      owner,
-      coinType: normalizeCoinType(coinType),
-      limit,
-    });
-
-    return coins.data
-      .filter(coin => BigInt(coin.balance) > 0)
-      .map(coin => coin.coinObjectId);
-  }
-
-  /**
-   * Helper: Get the total balance of coins
-   */
-  async getTotalBalance(
-    owner: string,
-    coinType: string
-  ): Promise<bigint> {
-    const balance = await this.client.getBalance({
-      owner,
-      coinType: normalizeCoinType(coinType),
-    });
-
-    return BigInt(balance.totalBalance);
   }
 }

@@ -35,7 +35,7 @@ async function queryLocksExample() {
     
     console.log(`Number of certificates: ${certificates.length}`);
     certificates.forEach((cert, index) => {
-      const unlockDate = new Date(parseInt(cert.unlock_timestamp) * 1000);
+      const unlockDate = new Date(parseInt(cert.unlock_ts) * 1000);
       
       console.log(`\nCertificate #${index + 1}:`);
       console.log(`  ID: ${cert.id}`);
